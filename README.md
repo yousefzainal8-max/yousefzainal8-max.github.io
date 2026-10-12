@@ -20,6 +20,14 @@ Static website (GitHub Pages) + free Firebase Firestore database so every superv
 - Press **T** (or the TV Mode button) on the Dashboard for the TV screen.
 - Edit and Generate-report password: `GC123` (change it: see below).
 
+## Remote control (change the display for everyone)
+- On the Dashboard press **📡 Remote** (password `GC123`).
+- Choose **Period**, **Page**, **TV Mode** On/Off and **Apply to** (Everyone, or only devices used as TV screens).
+- Every open copy of the site follows within ~5 seconds. New people opening the link get the current setting.
+- A device can opt out with the **Follow remote** tick box.
+- A device becomes a "TV screen" once you press **TV Mode** on it; it then reopens in TV Mode automatically after a reload.
+- Browsers only allow fullscreen after a click/keypress, so on the TV press **F11** once (or click the page) if it is not fullscreen.
+
 ## Security notes
 - The Firestore rules above let anyone with the link read/write the three collections (simple, matches a shared-link workflow). For stricter control, enable Firebase Authentication and change the rules to `if request.auth != null`.
 - The edit password is checked in the browser, so it is a light safeguard only. To change it, compute the SHA-256 of your new password (e.g. `printf 'NEWPASS' | sha256sum`) and replace the value of `PWH` in `index.html`.

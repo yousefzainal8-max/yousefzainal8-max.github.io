@@ -84,6 +84,7 @@ body.tvon #mrow{display:flex;gap:16px;height:200px}
 body.tvon #pwrap{flex:0 0 480px;overflow:hidden}body.tvon #mwrap{flex:1;overflow:hidden;margin-top:0!important}
 body.tvon [data-edit],body.tvon [data-editv]{display:none}
 #live{display:none}
+body.tvon #remBtn,body.tvon #folw{display:none}
 @keyframes pl{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.6)}50%{opacity:.55;box-shadow:0 0 0 8px rgba(52,211,153,0)}}
 body.tvon #live{display:inline-block;margin:0 14px;padding:3px 12px;border-radius:99px;background:#064e3b;color:#34d399;font-weight:800;font-size:15px;letter-spacing:.12em;animation:pl 1.8s infinite}
 body.tvon #tvtitle{font-size:32px;font-weight:800;letter-spacing:.04em;background:linear-gradient(90deg,#fff,#7cc4ff 60%,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -150,7 +151,7 @@ body.tvon .pb{height:9px}
  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
   <b id="tvtitle">⚓ Port Terminal – Shift Cargo Operations</b><span id="live">● LIVE</span><span id="tvclock" class="note"></span>
   <div><label style="display:inline;margin-right:6px">Period</label><select id="range" style="width:auto;display:inline-block"><option value="24h">Last 24 hours</option><option value="today">Today</option><option value="48h">Last 48 hours</option><option value="7d">Last 7 days</option><option value="all">All time</option></select> <span class="note" id="rnote"></span></div>
-  <span><button class="btn" id="tvbtn" style="margin-right:6px">📺 TV Mode</button><button class="btn s" id="tvx">✕ Exit TV</button><button class="btn" id="gen">Generate 24H Report</button></span></div>
+  <span><label id="folw" class="note" style="margin-right:8px;white-space:nowrap"><input type="checkbox" id="follow" checked style="width:auto;margin-right:4px">Follow remote</label><button class="btn s" id="remBtn" style="margin-right:6px">📡 Remote</button><button class="btn" id="tvbtn" style="margin-right:6px">📺 TV Mode</button><button class="btn s" id="tvx">✕ Exit TV</button><button class="btn" id="gen">Generate 24H Report</button></span></div>
  <div class="kpis" id="kpis"></div>
  <div class="two">
   <div class="card"><h2>Shift Performance</h2><div class="wrap"><table id="tShift"></table></div><div id="bShift"></div></div>
@@ -190,9 +191,9 @@ async function initStore(){
   $('sync').textContent='· shared database connected';
   const conv=s=>(s.docs||[]).map(d=>({id:d.id,...(typeof d.data==='function'?d.data():d.data)}));
   const err=e=>{console.error(e);$('sync').textContent='· database error: '+((e&&e.message)||e)};
-  const pull=async()=>{try{shifts=conv(await db.collection('shifts').get());reports=conv(await db.collection('reports').get());vessels=conv(await db.collection('vessels').get());render()}catch(e){err(e)}};
+  const pull=async()=>{try{shifts=conv(await db.collection('shifts').get());reports=conv(await db.collection('reports').get());vessels=conv(await db.collection('vessels').get());{const st=conv(await db.collection('settings').get()).find(x=>x.id==='display');if(st)applyRemote(st)}render()}catch(e){err(e)}};
   const sub=(name,cb)=>db.collection(name).onSnapshot(s=>{cb(conv(s));render()},err);
-  sub('shifts',a=>shifts=a);sub('reports',a=>reports=a);sub('vessels',a=>vessels=a);
+  sub('shifts',a=>shifts=a);sub('reports',a=>reports=a);sub('vessels',a=>vessels=a);sub('settings',a=>{const s=a.find(x=>x.id==='display');if(s)applyRemote(s)});
   pull();setInterval(pull,5000);
  }else{
   $('sync').textContent='· offline mode (saved in this browser only)';
@@ -357,14 +358,34 @@ function fitTV(){const w=$('tvw');if(!document.body.classList.contains('tvon')){
 async function tv(on){document.body.classList.toggle('tvon',on);
  if(on){try{await document.documentElement.requestFullscreen()}catch(e){}}else if(document.fullscreenElement){try{await document.exitFullscreen()}catch(e){}}
  fitTV();render()}
-$('tvbtn').onclick=()=>tv(true);$('tvx').onclick=()=>tv(false);
+$('tvbtn').onclick=()=>tvUser(true);$('tvx').onclick=()=>tvUser(false);
 addEventListener('resize',fitTV);
-addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test((e.target.tagName||'')))return;if(e.key==='Escape')tv(false);if(e.key==='t'||e.key==='T')tv(!document.body.classList.contains('tvon'))});
+addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test((e.target.tagName||'')))return;if(e.key==='Escape')tvUser(false);if(e.key==='t'||e.key==='T')tvUser(!document.body.classList.contains('tvon'))});
 setInterval(()=>{$('tvclock').textContent=new Date().toLocaleString()},1000);
 setInterval(()=>{if(!document.body.classList.contains('tvon'))return;const w=$('mwrap');if(w.scrollHeight<=w.clientHeight+2)return;w.scrollTop=(w.scrollTop>=w.scrollHeight-w.clientHeight-1)?0:w.scrollTop+1},60);
 function syncVt(){$('vtoWrap').style.display=$('vtype').value==='Other'?'block':'none'}
 $('vtype').onchange=syncVt;
+// ---------- remote control ----------
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+function tvUser(on){ls('cargoTV',on?'1':'0');tv(on)}
+const RANGES=['24h','today','48h','7d','all'],RK={'24h':'Last 24 hours','today':'Today','48h':'Last 48 hours','7d':'Last 7 days','all':'All time'},PK={dash:'Dashboard',entry:'Shift Entry',arch:'Reports Archive'};
+let lastTs=null,lastSet=null;
+function applyRemote(s){if(!s)return;lastSet=s;if(s.ts===lastTs)return;lastTs=s.ts;
+ if(!$('follow').checked)return;if(s.target==='tv'&&ls('cargoTV')!=='1')return;
+ const tvon=()=>document.body.classList.contains('tvon');
+ if(RANGES.includes(s.range)){RANGE=s.range;$('range').value=s.range}
+ if(s.tv===false&&tvon())tv(false);
+ const pg=(s.tv===true)?'dash':s.page,b=pg&&document.querySelector('nav button[data-p='+pg+']');
+ if(b&&!$(pg).classList.contains('on')){if(tvon())tv(false);b.click()}
+ if(s.tv===true&&!tvon())tv(true);
+ render()}
+async function setRemote(rec){lastSet=rec;if(db)await db.collection('settings').doc('display').set(rec);lastTs=null;applyRemote(rec)}
+$('follow').checked=ls('cargoFollow')!=='0';$('follow').onchange=()=>ls('cargoFollow',$('follow').checked?'1':'0');
+$('remBtn').onclick=async()=>{if(!(await askPw()))return;const c=lastSet||{},key=(o,x)=>Object.keys(o).find(k=>o[k]===x);
+ dlgOpen('📡 Remote – change the display for everyone',[{k:'range',l:'Period',v:RK[c.range]||RK['24h'],opts:Object.values(RK)},{k:'page',l:'Page',v:PK[c.page]||PK.dash,opts:Object.values(PK)},{k:'tv',l:'TV Mode',v:c.tv?'On':'Off',opts:['Off','On']},{k:'target',l:'Apply to',v:c.target==='tv'?'TV screens only':'Everyone',opts:['Everyone','TV screens only']}],
+  async v=>{await setRemote({id:'display',range:key(RK,v.range),page:key(PK,v.page),tv:v.tv==='On',target:v.target==='Everyone'?'all':'tv',ts:Date.now()})})};
 $('range').onchange=()=>{RANGE=$('range').value;render()};
 setInterval(render,60000);
+if(ls('cargoTV')==='1')tv(true);
 initStore();render();
 </script></body></html>

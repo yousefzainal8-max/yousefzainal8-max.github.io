@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /{coll}/{doc} {
-      allow read, write: if coll in ['shifts','vessels','reports'];
+      allow read, write: if coll in ['shifts','vessels','reports','settings'];
     }
   }
 }
