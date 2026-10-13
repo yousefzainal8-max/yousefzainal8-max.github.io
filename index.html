@@ -5,12 +5,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 /* ============================================================
    STEP 1 – PASTE YOUR FIREBASE CONFIG HERE (see README.md)
    Leave apiKey empty to run in single-browser (offline) mode.
    ============================================================ */
 window.FIREBASE_CONFIG = {
+  databaseURL: "https://apmt-port---gc-dashboard-default-rtdb.asia-southeast1.firebasedatabase.app",
   apiKey: "",
   authDomain: "",
   projectId: "",
@@ -185,14 +187,20 @@ let shifts=[],reports=[],vessels=[],db=null,local={shifts:[],reports:[],vessels:
 // ---------- storage layer (shared db, falls back to this browser) ----------
 function lsLoad(){try{local=JSON.parse(localStorage.getItem('cargo')||'')||local}catch(e){}local.vessels=local.vessels||[]}
 function lsSave(){try{localStorage.setItem('cargo',JSON.stringify(local))}catch(e){}}
-function parseCfg(t){const o={};['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId','measurementId'].forEach(k=>{const m=t.match(new RegExp(k+'["\']?\\s*:\\s*["\']([^"\']+)["\']'));if(m)o[k]=m[1]});return o}
+function rtdbAdapter(r){const key=id=>String(id).replace(/[.#$\[\]\/]/g,'_'),clean=o=>JSON.parse(JSON.stringify(o)),
+ toSnap=s=>{const v=s.val()||{};return{docs:Object.keys(v).map(k=>({id:k,data:()=>v[k]}))}};
+ return{collection:n=>({
+  get:async()=>toSnap(await r.ref(n).get()),
+  onSnapshot:(cb,er)=>r.ref(n).on('value',s=>cb(toSnap(s)),er),
+  doc:id=>({set:rec=>r.ref(n+'/'+key(id)).set(clean(rec)),delete:()=>r.ref(n+'/'+key(id)).remove()})})}}
+function parseCfg(t){const o={};['databaseURL','apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId','measurementId'].forEach(k=>{const m=t.match(new RegExp(k+'["\']?\\s*:\\s*["\']([^"\']+)["\']'));if(m)o[k]=m[1]});return o}
 function openSetup(){const d=$('dlg');
  d.innerHTML='<h2 style="margin:0 0 8px;font-size:16px">🔧 Database setup (Firebase)</h2><p class="note" style="margin:0 0 8px">Paste the <b>firebaseConfig</b> from Firebase → Project settings → Your apps.<br>1) <b>Save &amp; test</b> on this device. 2) <b>Download</b> the configured index.html and upload it to GitHub so every device gets it.</p><textarea id="cfgTxt" style="min-height:170px;direction:ltr;font-family:monospace;font-size:12px" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;...&quot;,&#10;  projectId: &quot;...&quot;,&#10;  ...&#10;};"></textarea><div id="cfgMsg" style="font-size:13px;min-height:20px;margin:6px 0"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="cfgSave">Save &amp; test</button><button class="btn s" id="cfgDl">⬇ Download configured index.html</button><button class="btn s" id="cfgClr">Clear</button><button class="btn s" id="cfgX" style="margin-inline-start:auto">Close</button></div>';
  d.showModal();
  let cur=null;try{cur=JSON.parse(localStorage.getItem('cargoFB')||'null')}catch(e){}cur=cur||window.FIREBASE_CONFIG;
- if(cur&&cur.apiKey)$('cfgTxt').value=JSON.stringify(cur,null,2);
+ if(cur&&(cur.apiKey||cur.databaseURL))$('cfgTxt').value=JSON.stringify(cur,null,2);
  const msg=(t,bad)=>{$('cfgMsg').style.color=bad?'#dc2626':'#16a34a';$('cfgMsg').textContent=t};
- const get=()=>{const c=parseCfg($('cfgTxt').value);if(!c.apiKey||!c.projectId){msg('apiKey and projectId were not found – paste the whole firebaseConfig block.',true);return null}return c};
+ const get=()=>{const c=parseCfg($('cfgTxt').value);if(!c.databaseURL&&!(c.apiKey&&c.projectId)){msg('databaseURL (Realtime Database) or apiKey + projectId (Firestore) were not found – paste the whole firebaseConfig block.',true);return null}return c};
  $('cfgSave').onclick=()=>{const c=get();if(!c)return;try{localStorage.setItem('cargoFB',JSON.stringify(c))}catch(e){}msg('Saved – reloading…');setTimeout(()=>location.reload(),600)};
  $('cfgDl').onclick=async()=>{const c=get();if(!c)return;try{const r=await fetch(location.href.split('#')[0],{cache:'no-store'});const t=await r.text();if(!/window\.FIREBASE_CONFIG\s*=\s*\{/.test(t))throw new Error('config block not found');
   const n=t.replace(/window\.FIREBASE_CONFIG\s*=\s*\{[\s\S]*?\};/,()=>'window.FIREBASE_CONFIG = '+JSON.stringify(c,null,2)+';');
@@ -203,14 +211,14 @@ $('dbsetup').onclick=e=>{e.preventDefault();openSetup()};
 function net(bad,msg){const n=$('net');n.style.display=bad?'block':'none';n.textContent=msg||''}
 function dbErr(e){console.error(e);const c=(e&&e.code)||'',m=(e&&e.message)||String(e);$('sync').textContent='· ❌ database error';
  let h=' ('+c+') '+m;
- if(/permission/i.test(c+m))h='❌ Firestore rules block reading/writing. Open Firebase Console → Firestore → Rules, paste firestore.rules and press Publish. / قواعد Firestore تمنع القراءة والكتابة: انسخ firestore.rules إلى تبويب Rules ثم Publish.';
+ if(/permission/i.test(c+m))h='❌ Database rules block reading/writing (Realtime Database → Rules, or Firestore → Rules). Open Firebase Console → Firestore → Rules, paste firestore.rules and press Publish. / قواعد Firestore تمنع القراءة والكتابة: انسخ firestore.rules إلى تبويب Rules ثم Publish.';
  else if(/api.?key|project|invalid/i.test(c+m))h='❌ firebaseConfig values are wrong (apiKey / projectId). Copy them again from Project settings → Your apps. / قيم firebaseConfig خاطئة.'+h;
  else if(/unavailable|network|offline/i.test(c+m))h='❌ Cannot reach Firebase (network / firewall). / تعذر الاتصال بـ Firebase.'+h;
  else if(/not.?found|database/i.test(m))h='❌ Firestore database not created yet: Firebase Console → Build → Firestore Database → Create database. / لم يتم إنشاء قاعدة Firestore بعد.'+h;
  net(true,h)}
 async function initStore(){
  lsLoad();
- try{let c=window.FIREBASE_CONFIG;if(!(c&&c.apiKey)){try{const l=JSON.parse(localStorage.getItem('cargoFB')||'null');if(l&&l.apiKey)c=l}catch(e){}}if(c&&c.apiKey&&window.firebase){firebase.initializeApp(c);db=firebase.firestore();try{db.settings({ignoreUndefinedProperties:true})}catch(e){}}else db=null}catch(e){console.error(e);db=null}
+ try{let c=window.FIREBASE_CONFIG;if(!(c&&(c.apiKey||c.databaseURL))){try{const l=JSON.parse(localStorage.getItem('cargoFB')||'null');if(l&&(l.apiKey||l.databaseURL))c=l}catch(e){}}if(c&&(c.apiKey||c.databaseURL)&&window.firebase){firebase.initializeApp(c);if(c.databaseURL){db=rtdbAdapter(firebase.database())}else{db=firebase.firestore();try{db.settings({ignoreUndefinedProperties:true})}catch(e){}}}else db=null}catch(e){console.error(e);db=null}
  if(db){
   $('sync').textContent='· connecting…';
   db.collection('settings').get().then(()=>{$('sync').textContent='· ✅ connected – live for everyone';net(false)}).catch(e=>dbErr(e));
@@ -305,10 +313,10 @@ function buildPdf(snap){
  const T=(cols,rows,xs)=>{d.setFontSize(10);d.setFont('helvetica','bold');cols.forEach((c,i)=>d.text(c,xs[i],y,{align:i?'right':'left'}));y+=6;d.setDrawColor(200);d.line(M,y,W-M,y);y+=13;d.setFont('helvetica','normal');
   rows.forEach(r=>{if(y>780){d.addPage();y=50}r.forEach((c,i)=>d.text(String(c),xs[i],y,{align:i?'right':'left'}));y+=15});y+=12};
  H('Summary');T(['Metric','Value'],[['Total Vessels',snap.vessels],['Total Packages',f0(snap.pk)],['Total MT',f1(snap.mt)],['Total CBM',f1(snap.cbm||0)],['Total FT',f1(snap.fts||0)],['Total Shifts',snap.n],['Average MT / Hour',f1(snap.mtHr)],['Best Performing Shift',snap.best||'–']],[M,W-M]);
- H('Vessel Summary');T(['Vessel / Voyage','Packages','MT','CBM','FT','Balance MT'],snap.ves.map(v=>[(v.vessel+' / '+v.voyage).slice(0,30),f0(v.pk),f1(v.mt),f1(v.cbm||0),f1(v.ft||0),typeof v.bm==='number'?f1(v.bm):'–']),[M,290,350,410,470,W-M]);
+ H('Vessel Summary');T(['Vessel / Voyage','Packages','MT','CBM','FT','Balance MT'],(snap.ves||[]).map(v=>[(v.vessel+' / '+v.voyage).slice(0,30),f0(v.pk),f1(v.mt),f1(v.cbm||0),f1(v.ft||0),typeof v.bm==='number'?f1(v.bm):'–']),[M,290,350,410,470,W-M]);
  H('Shift Summary');T(['Shift','Packages','MT','CBM','FT'],SH.map(s=>{const x=snap.sh[s];return[s+(x.per&&x.per.length?' - '+x.per.map(p=>PER[p]).join(', '):''),f0(x.pk),f1(x.mt),f1(x.cbm||0),f1(x.ft||0)]}),[M,330,400,480,W-M]);
- H('Cargo Summary');T(['Vessel Type','Packages','MT'],snap.cg.map(c=>[c.cargo,f0(c.pk),f1(c.mt)]),[M,420,W-M]);
- H('Berth Productivity');T(['Berth','MT','MT/hr'],snap.brt.map(b=>[b.berth,f1(b.mt),b.h?f1(b.mt/b.h):'–']),[M,420,W-M]);
+ H('Cargo Summary');T(['Vessel Type','Packages','MT'],(snap.cg||[]).map(c=>[c.cargo,f0(c.pk),f1(c.mt)]),[M,420,W-M]);
+ H('Berth Productivity');T(['Berth','MT','MT/hr'],(snap.brt||[]).map(b=>[b.berth,f1(b.mt),b.h?f1(b.mt/b.h):'–']),[M,420,W-M]);
  d.setFontSize(9);d.setTextColor(100);d.text('Generated: '+new Date(snap.ts).toLocaleString(),M,815);
  return d.output('blob')}
 async function deliver(snap){

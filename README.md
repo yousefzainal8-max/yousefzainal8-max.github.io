@@ -58,3 +58,14 @@ The password is checked in the browser, so it is only a light safeguard.
 ## Security note
 `firestore.rules` lets anyone with the link read and write the shared data (this is what makes "anyone can update" work).
 For stricter control, enable Firebase Authentication and change the rules to `allow read, write: if request.auth != null;`.
+
+## Realtime Database version / نسخة Realtime Database
+This package is already set to the **Realtime Database** URL:
+`https://apmt-port---gc-dashboard-default-rtdb.asia-southeast1.firebasedatabase.app`
+1. Firebase Console -> **Build -> Realtime Database -> Rules** -> paste `database.rules.json` -> **Publish**.
+   (If you started in "test mode", the default rules expire after 30 days, so publish these rules.)
+2. Upload `index.html` to GitHub and open the site: the header must show **✅ connected – live for everyone**.
+You do NOT need Firestore for this version. If you prefer Firestore, use `firestore.rules` and fill `apiKey`/`projectId` instead.
+
+## Connection test / اختبار الاتصال
+Open `test-connection.html` (upload it to GitHub next to index.html, then open `https://<you>.github.io/<repo>/test-connection.html`) and press **Run connection test**. It checks: library loads -> write -> read, and tells you exactly what to fix. When it says **ONLINE MODE WORKS**, the dashboard is online.

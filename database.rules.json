@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "shifts": {
+      ".read": true,
+      ".write": true
+    },
+    "vessels": {
+      ".read": true,
+      ".write": true
+    },
+    "reports": {
+      ".read": true,
+      ".write": true
+    },
+    "settings": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Database connection test</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+body{font:16px/1.6 system-ui,Segoe UI,Tahoma,sans-serif;max-width:720px;margin:0 auto;padding:18px;background:#f3f6fa;color:#14213d}
+h1{font-size:20px}input{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;direction:ltr}
+button{margin:10px 0;padding:13px 20px;font-weight:700;background:#0b4f8a;color:#fff;border:0;border-radius:9px;font-size:16px;cursor:pointer}
+li{margin:8px 0;padding:10px 12px;border-radius:8px;list-style:none;background:#fff;border:1px solid #dbe3ee}
+li.ok{border-color:#16a34a;background:#e8f7ee}li.bad{border-color:#dc2626;background:#fee2e2}
+#final{font-size:18px;font-weight:800;margin-top:12px}
+</style></head><body>
+<h1>⚓ APMT PORT – Database connection test<br><small style="font-weight:400">اختبار الاتصال بقاعدة البيانات</small></h1>
+<p>Database URL / رابط القاعدة:</p>
+<input id="url" value="https://apmt-port---gc-dashboard-default-rtdb.asia-southeast1.firebasedatabase.app">
+<button id="go">Run connection test / ابدأ الاختبار</button>
+<ul id="log" style="padding:0"></ul><div id="final"></div>
+<script>
+const $=id=>document.getElementById(id);
+function add(ok,t){const l=document.createElement('li');l.className=ok?'ok':'bad';l.textContent=(ok?'✅ ':'❌ ')+t;$('log').appendChild(l);return ok}
+const to=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
+function hint(e){const m=(e&&e.message)||String(e);
+ if(/permission/i.test(m))return 'Rules block access. Firebase Console → Realtime Database → Rules → paste database.rules.json → Publish. / القواعد تمنع الوصول: الصق database.rules.json ثم Publish.';
+ if(/timeout/i.test(m))return 'No answer from the database in 8 seconds: wrong URL, blocked network/VPN/firewall, or ad-blocker. / لا يوجد رد: رابط خاطئ أو شبكة تحجب Google.';
+ return m}
+$('go').onclick=async()=>{
+ $('log').innerHTML='';$('final').textContent='';
+ if(!window.firebase||!firebase.database){add(false,'Firebase library did not load (ad-blocker / VPN / firewall, or you opened this file inside a preview window). Open it from GitHub Pages or from the saved file in Chrome. / تعذر تحميل مكتبة Firebase.');return}
+ add(true,'Firebase library loaded');
+ try{if(!firebase.apps.length)firebase.initializeApp({databaseURL:$('url').value.trim()});add(true,'App initialised')}catch(e){add(false,'Init failed: '+e.message);return}
+ const ref=firebase.database().ref('settings/ping'),v=Date.now();let ok=true;
+ try{await to(ref.set({ts:v}),8000);add(true,'Write to database OK')}catch(e){ok=false;add(false,'Write failed: '+hint(e))}
+ if(ok){try{const s=await to(ref.get(),8000);ok=!!(s.val()&&s.val().ts===v);add(ok,ok?'Read back OK':'Read returned different data')}catch(e){ok=false;add(false,'Read failed: '+hint(e))}}
+ $('final').textContent=ok?'🟢 ONLINE MODE WORKS – the dashboard will share live data with this database. / الوضع المباشر يعمل.':'🔴 Not online yet – fix the red item above and run the test again. / أصلح البند الأحمر وأعد الاختبار.';
+};
+</script></body></html>
