@@ -115,7 +115,7 @@ body.tvon .pb{height:9px}
 .arr{display:flex;gap:6px}.arr select{flex:1}.arr .btn{padding:0 16px;font-size:16px}nav button.ar{flex:0 0 46px;min-width:46px;padding:11px 0}
 .tag{display:inline-block;padding:2px 9px;border-radius:99px;color:#fff;font-weight:700;font-size:12px}
 </style></head><body>
-<header><h1>⚓ APMT PORT - GC DASHBOARD</h1><p>Port terminal · live shift reporting <span id="sync"></span></p></header>
+<header><h1>⚓ APMT PORT - GC DASHBOARD</h1><p>Port terminal · live shift reporting <span id="sync"></span> · <a href="#" id="dbsetup" style="color:#cfe6ff;font-weight:700">🔧 Database setup</a></p></header>
 <div id="net" style="display:none;margin:10px 12px 0;padding:12px 14px;border-radius:10px;background:#fee2e2;color:#7f1d1d;font-weight:600;border:1px solid #fca5a5"></div>
 <nav><button class="ar" id="pprev" aria-label="Previous page">◀</button><button data-p="dash" class="on">Dashboard</button><button data-p="entry">Shift Entry</button><button data-p="arch">Reports Archive</button><button class="ar" id="pnext" aria-label="Next page">▶</button></nav>
 <main>
@@ -185,6 +185,21 @@ let shifts=[],reports=[],vessels=[],db=null,local={shifts:[],reports:[],vessels:
 // ---------- storage layer (shared db, falls back to this browser) ----------
 function lsLoad(){try{local=JSON.parse(localStorage.getItem('cargo')||'')||local}catch(e){}local.vessels=local.vessels||[]}
 function lsSave(){try{localStorage.setItem('cargo',JSON.stringify(local))}catch(e){}}
+function parseCfg(t){const o={};['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId','measurementId'].forEach(k=>{const m=t.match(new RegExp(k+'["\']?\\s*:\\s*["\']([^"\']+)["\']'));if(m)o[k]=m[1]});return o}
+function openSetup(){const d=$('dlg');
+ d.innerHTML='<h2 style="margin:0 0 8px;font-size:16px">🔧 Database setup (Firebase)</h2><p class="note" style="margin:0 0 8px">Paste the <b>firebaseConfig</b> from Firebase → Project settings → Your apps.<br>1) <b>Save &amp; test</b> on this device. 2) <b>Download</b> the configured index.html and upload it to GitHub so every device gets it.</p><textarea id="cfgTxt" style="min-height:170px;direction:ltr;font-family:monospace;font-size:12px" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;...&quot;,&#10;  projectId: &quot;...&quot;,&#10;  ...&#10;};"></textarea><div id="cfgMsg" style="font-size:13px;min-height:20px;margin:6px 0"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="cfgSave">Save &amp; test</button><button class="btn s" id="cfgDl">⬇ Download configured index.html</button><button class="btn s" id="cfgClr">Clear</button><button class="btn s" id="cfgX" style="margin-inline-start:auto">Close</button></div>';
+ d.showModal();
+ let cur=null;try{cur=JSON.parse(localStorage.getItem('cargoFB')||'null')}catch(e){}cur=cur||window.FIREBASE_CONFIG;
+ if(cur&&cur.apiKey)$('cfgTxt').value=JSON.stringify(cur,null,2);
+ const msg=(t,bad)=>{$('cfgMsg').style.color=bad?'#dc2626':'#16a34a';$('cfgMsg').textContent=t};
+ const get=()=>{const c=parseCfg($('cfgTxt').value);if(!c.apiKey||!c.projectId){msg('apiKey and projectId were not found – paste the whole firebaseConfig block.',true);return null}return c};
+ $('cfgSave').onclick=()=>{const c=get();if(!c)return;try{localStorage.setItem('cargoFB',JSON.stringify(c))}catch(e){}msg('Saved – reloading…');setTimeout(()=>location.reload(),600)};
+ $('cfgDl').onclick=async()=>{const c=get();if(!c)return;try{const r=await fetch(location.href.split('#')[0],{cache:'no-store'});const t=await r.text();if(!/window\.FIREBASE_CONFIG\s*=\s*\{/.test(t))throw new Error('config block not found');
+  const n=t.replace(/window\.FIREBASE_CONFIG\s*=\s*\{[\s\S]*?\};/,()=>'window.FIREBASE_CONFIG = '+JSON.stringify(c,null,2)+';');
+  const u=URL.createObjectURL(new Blob([n],{type:'text/html'})),a=document.createElement('a');a.href=u;a.download='index.html';document.body.appendChild(a);a.click();a.remove();msg('Downloaded – upload this index.html to GitHub (replace the old one).')}catch(e){msg('Could not read this page ('+e.message+'). Open the site from GitHub Pages and try again, or paste the block into index.html manually.',true)}};
+ $('cfgClr').onclick=()=>{try{localStorage.removeItem('cargoFB')}catch(e){}msg('Cleared – reloading…');setTimeout(()=>location.reload(),500)};
+ $('cfgX').onclick=()=>d.close()}
+$('dbsetup').onclick=e=>{e.preventDefault();openSetup()};
 function net(bad,msg){const n=$('net');n.style.display=bad?'block':'none';n.textContent=msg||''}
 function dbErr(e){console.error(e);const c=(e&&e.code)||'',m=(e&&e.message)||String(e);$('sync').textContent='· ❌ database error';
  let h=' ('+c+') '+m;
@@ -195,7 +210,7 @@ function dbErr(e){console.error(e);const c=(e&&e.code)||'',m=(e&&e.message)||Str
  net(true,h)}
 async function initStore(){
  lsLoad();
- try{const c=window.FIREBASE_CONFIG;if(c&&c.apiKey&&window.firebase){firebase.initializeApp(c);db=firebase.firestore();try{db.settings({ignoreUndefinedProperties:true})}catch(e){}}else db=null}catch(e){console.error(e);db=null}
+ try{let c=window.FIREBASE_CONFIG;if(!(c&&c.apiKey)){try{const l=JSON.parse(localStorage.getItem('cargoFB')||'null');if(l&&l.apiKey)c=l}catch(e){}}if(c&&c.apiKey&&window.firebase){firebase.initializeApp(c);db=firebase.firestore();try{db.settings({ignoreUndefinedProperties:true})}catch(e){}}else db=null}catch(e){console.error(e);db=null}
  if(db){
   $('sync').textContent='· connecting…';
   db.collection('settings').get().then(()=>{$('sync').textContent='· ✅ connected – live for everyone';net(false)}).catch(e=>dbErr(e));
@@ -207,7 +222,7 @@ async function initStore(){
   pull();setInterval(pull,5000);
  }else{
   $('sync').textContent='· ⚠ offline mode';
-  net(true,(window.firebase?'⚠ Firebase is NOT configured: paste your firebaseConfig into window.FIREBASE_CONFIG in index.html. Until then every device keeps its own separate data. / لم يتم لصق إعدادات Firebase في index.html، لذلك كل جهاز يحفظ بياناته منفصلة.':'⚠ Firebase scripts did not load (ad-blocker / firewall / no internet). / تعذر تحميل مكتبة Firebase.'));
+  net(true,(window.firebase?'⚠ Firebase is NOT configured: click "🔧 Database setup" at the top and paste your firebaseConfig (or paste it into window.FIREBASE_CONFIG in index.html). Until then every device keeps its own separate data. / لم يتم لصق إعدادات Firebase في index.html، لذلك كل جهاز يحفظ بياناته منفصلة.':'⚠ Firebase scripts did not load (ad-blocker / firewall / no internet). / تعذر تحميل مكتبة Firebase.'));
   shifts=local.shifts;reports=local.reports;vessels=local.vessels;render();
  }
 }

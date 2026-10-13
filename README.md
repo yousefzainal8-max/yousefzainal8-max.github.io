@@ -7,7 +7,7 @@ Live shift cargo dashboard. Anyone with the link can add/update data and everyon
 |---|---|
 | `index.html` | The whole website (put in repository root) |
 | `firestore.rules` | Database rules to paste into Firebase |
-| `.nojekyll` | Tells GitHub Pages to serve files as-is |
+| `.nojekyll` | Optional (GitHub's web upload may refuse dot-files; the site works without it) |
 | `README.md` | These instructions |
 
 ## Step 1 – Firebase database (free) / قاعدة البيانات
@@ -18,6 +18,10 @@ Live shift cargo dashboard. Anyone with the link can add/update data and everyon
 5. Copy the `firebaseConfig` values shown.
 
 ## Step 2 – Paste the config / لصق الإعدادات
+**Easy way (no code editing) / الطريقة السهلة:** open the site, click **🔧 Database setup** in the header, paste the `firebaseConfig` block, press **Save & test**, then **Download configured index.html** and upload that file to GitHub (replace the old `index.html`). Now every device is connected.
+اضغط 🔧 Database setup في أعلى الموقع، الصق إعدادات Firebase، ثم نزّل index.html المعدّل وارفعه إلى GitHub بدل القديم.
+
+**Manual way / الطريقة اليدوية:**
 Open `index.html`, find `window.FIREBASE_CONFIG` near the top and fill:
 ```js
 window.FIREBASE_CONFIG = {
