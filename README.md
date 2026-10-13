@@ -1,33 +1,56 @@
-# Port Terminal – Daily Shift Cargo Dashboard
+# APMT PORT - GC DASHBOARD
+Live shift cargo dashboard. Anyone with the link can add/update data and everyone sees it within seconds.
+لوحة متابعة الشحن المباشرة: أي شخص يملك الرابط يستطيع التحديث ويظهر عند الجميع خلال ثوانٍ.
 
-Static website (GitHub Pages) + free Firebase Firestore database so every supervisor sees the same live data.
+## Files / الملفات
+| File | Purpose |
+|---|---|
+| `index.html` | The whole website (put in repository root) |
+| `firestore.rules` | Database rules to paste into Firebase |
+| `.nojekyll` | Tells GitHub Pages to serve files as-is |
+| `README.md` | These instructions |
 
-## 1. Create the database (5 minutes, free)
-1. Go to https://console.firebase.google.com -> **Add project**.
-2. **Build -> Firestore Database -> Create database** (production mode, pick a region near you, e.g. Frankfurt/Mumbai).
-3. **Rules** tab -> paste the contents of `firestore.rules` -> **Publish**.
-4. **Project settings (gear) -> Your apps -> Web (</>)** -> register an app -> copy the `firebaseConfig` values.
-5. Open `index.html`, find `window.FIREBASE_CONFIG` near the top and paste the values.
+## Step 1 – Firebase database (free) / قاعدة البيانات
+1. https://console.firebase.google.com -> **Add project** (any name, Analytics off).
+2. **Build -> Firestore Database -> Create database** -> start in **production mode** -> choose a region -> Enable.
+3. **Firestore -> Rules** -> delete everything, paste the content of `firestore.rules` -> **Publish**.
+4. **Project settings (gear icon) -> General -> Your apps -> Web `</>`** -> give any nickname -> Register app.
+5. Copy the `firebaseConfig` values shown.
 
-## 2. Publish on GitHub Pages
-1. Create a new GitHub repository (e.g. `cargo-dashboard`).
-2. Upload `index.html` (and this README) to the repository root.
-3. **Settings -> Pages -> Build and deployment -> Deploy from a branch -> main / (root) -> Save**.
-4. After ~1 minute your site is live at `https://<your-username>.github.io/cargo-dashboard/`.
+## Step 2 – Paste the config / لصق الإعدادات
+Open `index.html`, find `window.FIREBASE_CONFIG` near the top and fill:
+```js
+window.FIREBASE_CONFIG = {
+  apiKey: "AIza...",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef"
+};
+```
+(If `apiKey` stays empty the site works in offline mode: each device keeps its own data.)
 
-## 3. Use it
-- Supervisors open the link on phone/tablet/PC and use **Shift Entry**.
-- Press **T** (or the TV Mode button) on the Dashboard for the TV screen.
-- Edit and Generate-report password: `GC123` (change it: see below).
+## Step 3 – Publish on GitHub Pages / النشر
+1. github.com -> **New repository** (e.g. `gc-dashboard`, Public).
+2. **Add file -> Upload files**: upload `index.html`, `.nojekyll`, `README.md`, `firestore.rules` to the **root** -> Commit.
+3. **Settings -> Pages -> Source: Deploy from a branch -> Branch: `main`, folder `/ (root)` -> Save**.
+4. After ~1 minute: `https://<your-username>.github.io/gc-dashboard/` is live. Share this link.
 
-## Remote control (change the display for everyone)
-- On the Dashboard press **📡 Remote** (password `GC123`).
-- Choose **Period**, **Page**, **TV Mode** On/Off and **Apply to** (Everyone, or only devices used as TV screens).
-- Every open copy of the site follows within ~5 seconds. New people opening the link get the current setting.
-- A device can opt out with the **Follow remote** tick box.
-- A device becomes a "TV screen" once you press **TV Mode** on it; it then reopens in TV Mode automatically after a reload.
-- Browsers only allow fullscreen after a click/keypress, so on the TV press **F11** once (or click the page) if it is not fullscreen.
+## Step 4 – Check it works / التأكد
+Open the link on two devices. The header must show **✅ connected – live for everyone**.
+Add a shift entry on one device -> it appears on the other in a few seconds.
+A red message at the top tells you what is wrong (config missing, rules, database not created, scripts blocked). Hard-refresh with Ctrl+F5 after fixing.
 
-## Security notes
-- The Firestore rules above let anyone with the link read/write the three collections (simple, matches a shared-link workflow). For stricter control, enable Firebase Authentication and change the rules to `if request.auth != null`.
-- The edit password is checked in the browser, so it is a light safeguard only. To change it, compute the SHA-256 of your new password (e.g. `printf 'NEWPASS' | sha256sum`) and replace the value of `PWH` in `index.html`.
+## Using it
+- **Dashboard** (first page), **Shift Entry** (second), **Reports Archive** (last).
+- **TV Mode**: press the TV button or the `T` key. **📡 Remote** changes Period / Page / TV Mode for all open screens.
+- Edit, Delete, Remote and Generate 24H Report ask for password `GC123`.
+
+## Change the password / تغيير كلمة المرور
+Run `printf 'NEWPASS' | sha256sum` (or use any SHA-256 tool) and replace the value of `PWH` in `index.html`.
+The password is checked in the browser, so it is only a light safeguard.
+
+## Security note
+`firestore.rules` lets anyone with the link read and write the shared data (this is what makes "anyone can update" work).
+For stricter control, enable Firebase Authentication and change the rules to `allow read, write: if request.auth != null;`.

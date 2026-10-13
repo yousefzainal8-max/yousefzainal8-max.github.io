@@ -1,6 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Everyone with the link can read & write (shared shift data).
     match /{coll}/{doc} {
       allow read, write: if coll in ['shifts','vessels','reports','settings'];
     }

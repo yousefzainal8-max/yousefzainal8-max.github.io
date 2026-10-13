@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Port Terminal – Shift Cargo Dashboard</title>
+<title>APMT PORT - GC DASHBOARD</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -115,7 +115,8 @@ body.tvon .pb{height:9px}
 .arr{display:flex;gap:6px}.arr select{flex:1}.arr .btn{padding:0 16px;font-size:16px}nav button.ar{flex:0 0 46px;min-width:46px;padding:11px 0}
 .tag{display:inline-block;padding:2px 9px;border-radius:99px;color:#fff;font-weight:700;font-size:12px}
 </style></head><body>
-<header><h1>⚓ Daily Shift Cargo Operations</h1><p>Port terminal · live shift reporting <span id="sync"></span></p></header>
+<header><h1>⚓ APMT PORT - GC DASHBOARD</h1><p>Port terminal · live shift reporting <span id="sync"></span></p></header>
+<div id="net" style="display:none;margin:10px 12px 0;padding:12px 14px;border-radius:10px;background:#fee2e2;color:#7f1d1d;font-weight:600;border:1px solid #fca5a5"></div>
 <nav><button class="ar" id="pprev" aria-label="Previous page">◀</button><button data-p="dash" class="on">Dashboard</button><button data-p="entry">Shift Entry</button><button data-p="arch">Reports Archive</button><button class="ar" id="pnext" aria-label="Next page">▶</button></nav>
 <main>
 <section id="entry" class="page">
@@ -149,7 +150,7 @@ body.tvon .pb{height:9px}
 <section id="dash" class="page on">
  <div id="tvw">
  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-  <b id="tvtitle">⚓ Port Terminal – Shift Cargo Operations</b><span id="live">● LIVE</span><span id="tvclock" class="note"></span>
+  <b id="tvtitle">⚓ APMT PORT - GC DASHBOARD</b><span id="live">● LIVE</span><span id="tvclock" class="note"></span>
   <div><label style="display:inline;margin-right:6px">Period</label><select id="range" style="width:auto;display:inline-block"><option value="24h">Last 24 hours</option><option value="today">Today</option><option value="48h">Last 48 hours</option><option value="7d">Last 7 days</option><option value="all">All time</option></select> <span class="note" id="rnote"></span></div>
   <span><label id="folw" class="note" style="margin-right:8px;white-space:nowrap"><input type="checkbox" id="follow" checked style="width:auto;margin-right:4px">Follow remote</label><button class="btn s" id="remBtn" style="margin-right:6px">📡 Remote</button><button class="btn" id="tvbtn" style="margin-right:6px">📺 TV Mode</button><button class="btn s" id="tvx">✕ Exit TV</button><button class="btn" id="gen">Generate 24H Report</button></span></div>
  <div class="kpis" id="kpis"></div>
@@ -184,19 +185,29 @@ let shifts=[],reports=[],vessels=[],db=null,local={shifts:[],reports:[],vessels:
 // ---------- storage layer (shared db, falls back to this browser) ----------
 function lsLoad(){try{local=JSON.parse(localStorage.getItem('cargo')||'')||local}catch(e){}local.vessels=local.vessels||[]}
 function lsSave(){try{localStorage.setItem('cargo',JSON.stringify(local))}catch(e){}}
+function net(bad,msg){const n=$('net');n.style.display=bad?'block':'none';n.textContent=msg||''}
+function dbErr(e){console.error(e);const c=(e&&e.code)||'',m=(e&&e.message)||String(e);$('sync').textContent='· ❌ database error';
+ let h=' ('+c+') '+m;
+ if(/permission/i.test(c+m))h='❌ Firestore rules block reading/writing. Open Firebase Console → Firestore → Rules, paste firestore.rules and press Publish. / قواعد Firestore تمنع القراءة والكتابة: انسخ firestore.rules إلى تبويب Rules ثم Publish.';
+ else if(/api.?key|project|invalid/i.test(c+m))h='❌ firebaseConfig values are wrong (apiKey / projectId). Copy them again from Project settings → Your apps. / قيم firebaseConfig خاطئة.'+h;
+ else if(/unavailable|network|offline/i.test(c+m))h='❌ Cannot reach Firebase (network / firewall). / تعذر الاتصال بـ Firebase.'+h;
+ else if(/not.?found|database/i.test(m))h='❌ Firestore database not created yet: Firebase Console → Build → Firestore Database → Create database. / لم يتم إنشاء قاعدة Firestore بعد.'+h;
+ net(true,h)}
 async function initStore(){
  lsLoad();
- try{const c=window.FIREBASE_CONFIG;if(c&&c.apiKey&&window.firebase){firebase.initializeApp(c);db=firebase.firestore()}else db=null}catch(e){console.error(e);db=null}
+ try{const c=window.FIREBASE_CONFIG;if(c&&c.apiKey&&window.firebase){firebase.initializeApp(c);db=firebase.firestore();try{db.settings({ignoreUndefinedProperties:true})}catch(e){}}else db=null}catch(e){console.error(e);db=null}
  if(db){
-  $('sync').textContent='· shared database connected';
+  $('sync').textContent='· connecting…';
+  db.collection('settings').get().then(()=>{$('sync').textContent='· ✅ connected – live for everyone';net(false)}).catch(e=>dbErr(e));
   const conv=s=>(s.docs||[]).map(d=>({id:d.id,...(typeof d.data==='function'?d.data():d.data)}));
-  const err=e=>{console.error(e);$('sync').textContent='· database error: '+((e&&e.message)||e)};
+  const err=e=>dbErr(e);
   const pull=async()=>{try{shifts=conv(await db.collection('shifts').get());reports=conv(await db.collection('reports').get());vessels=conv(await db.collection('vessels').get());{const st=conv(await db.collection('settings').get()).find(x=>x.id==='display');if(st)applyRemote(st)}render()}catch(e){err(e)}};
   const sub=(name,cb)=>db.collection(name).onSnapshot(s=>{cb(conv(s));render()},err);
   sub('shifts',a=>shifts=a);sub('reports',a=>reports=a);sub('vessels',a=>vessels=a);sub('settings',a=>{const s=a.find(x=>x.id==='display');if(s)applyRemote(s)});
   pull();setInterval(pull,5000);
  }else{
-  $('sync').textContent='· offline mode (saved in this browser only)';
+  $('sync').textContent='· ⚠ offline mode';
+  net(true,(window.firebase?'⚠ Firebase is NOT configured: paste your firebaseConfig into window.FIREBASE_CONFIG in index.html. Until then every device keeps its own separate data. / لم يتم لصق إعدادات Firebase في index.html، لذلك كل جهاز يحفظ بياناته منفصلة.':'⚠ Firebase scripts did not load (ad-blocker / firewall / no internet). / تعذر تحميل مكتبة Firebase.'));
   shifts=local.shifts;reports=local.reports;vessels=local.vessels;render();
  }
 }
@@ -322,7 +333,7 @@ $('submit').onclick=async()=>{
  try{const b=bal(rec.vessel,rec.voyage);
   if(b.totPk===undefined)await save('vessels',{id:vkey(rec.vessel,rec.voyage),vessel:rec.vessel,voyage:rec.voyage,totPk:+g('totpk'),totMt:+g('totmt')});
   else if((b.totPk-b.dp-rec.pkgs<0||b.totMt-b.dm-rec.mt<0)&&!confirm('This entry is more than the remaining balance. Submit anyway?'))return;
-  await save('shifts',rec);}catch(e){alert('Save failed: '+(e&&e.message||e));return}
+  await save('shifts',rec);}catch(e){dbErr(e);alert('Save failed – see the red message at the top of the page.\n'+(e&&e.message||e));return}
  ['vessel','voyage','berth','vtypeo','commodity','pkgs','mt','cbm','ft','st','et','rem','totpk','totmt'].forEach(i=>$(i).value='');$('vpick').value='';syncVt();$('totpk').readOnly=$('totmt').readOnly=false;fillBal();
  $('ok').style.display='block';setTimeout(()=>$('ok').style.display='none',4000);document.querySelector('nav button[data-p=dash]').click();scrollTo({top:0})};
 document.querySelectorAll('nav button[data-p]').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.page').forEach(x=>x.classList.remove('on'));b.classList.add('on');$(b.dataset.p).classList.add('on');render()});
